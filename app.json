@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Vedic Clock",
+    "slug": "vedic-clock",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0D1B2A",
+    "primaryColor": "#E8B94B",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.varunc28.vedicclock"
+    },
+    "android": {
+      "package": "com.varunc28.vedicclock"
+    },
+    "androidStatusBar": {
+      "hidden": true,
+      "translucent": true
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-screen-orientation",
+      "./plugins/withKiosk.js",
+      "expo-asset",
+      "expo-video"
+    ]
+  }
+}

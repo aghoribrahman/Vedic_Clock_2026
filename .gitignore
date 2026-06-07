@@ -1,0 +1,31 @@
+# Node / Expo
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Native build artefacts
+ios/Pods/
+android/.gradle/
+android/build/
+android/app/build/
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Test / coverage
+coverage/
+*.log
+*.mp4
