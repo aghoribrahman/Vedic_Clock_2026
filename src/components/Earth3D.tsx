@@ -22,7 +22,7 @@ import { View, Platform } from 'react-native';
 // ── Earth texture asset ────────────────────────────────────────────────
 // Using require() for Metro bundler compatibility (Expo/RN).
 // On web this resolves to a URL; on native it resolves to a local asset.
-const EARTH_TEXTURE = require('../../assets/images/earth_daymap.jpg');
+const EARTH_TEXTURE = require('../../assets/earth.jpg');
 const EARTH_NORMAL = require('../../assets/images/earth_normal.jpg');
 const EARTH_SPECULAR = require('../../assets/images/earth_specular.jpg');
 const EARTH_CLOUDS = require('../../assets/images/earth_clouds.png');
@@ -71,7 +71,7 @@ function EarthSphere(): React.JSX.Element {
 
   return (
     <mesh ref={meshRef} rotation={[0, 0, 23.44 * (Math.PI / 180)]}>
-      <sphereGeometry args={[1, 128, 128]} />
+      <sphereGeometry args={[1, 256, 256]} />
       <meshPhongMaterial
         map={dayMap}
         normalMap={normalMap}
@@ -106,6 +106,15 @@ function EarthSphere(): React.JSX.Element {
             // Add night lights to totalEmissiveRadiance
             totalEmissiveRadiance += nightColor.rgb * nightFactor * vec3(1.0, 0.9, 0.8) * 1.5;
             `
+          ).replace(
+            '#include <specularmap_fragment>',
+            `
+            #include <specularmap_fragment>
+            #ifdef USE_SPECULARMAP
+              // Darken the water where specular map is bright
+              diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.4, specularStrength);
+            #endif
+            `
           );
         }}
       />
@@ -129,7 +138,7 @@ function CloudSphere(): React.JSX.Element {
 
   return (
     <mesh ref={meshRef} rotation={[0, 0, 23.44 * (Math.PI / 180)]} scale={[1.006, 1.006, 1.006]}>
-      <sphereGeometry args={[1, 128, 128]} />
+      <sphereGeometry args={[1, 256, 256]} />
       <meshPhongMaterial
         map={cloudMap}
         transparent={true}
@@ -185,7 +194,7 @@ function AtmosphereGlow(): React.JSX.Element {
 
   return (
     <mesh scale={[1.08, 1.08, 1.08]}>
-      <sphereGeometry args={[1, 128, 128]} />
+      <sphereGeometry args={[1, 256, 256]} />
       <primitive object={shaderMaterial} attach="material" />
     </mesh>
   );
@@ -248,6 +257,7 @@ export function Earth3D({ size }: Earth3DProps): React.JSX.Element {
       }}
     >
       <Canvas
+        dpr={[1, 2]}
         gl={{
           alpha: true,
           antialias: true,

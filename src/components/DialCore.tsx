@@ -22,6 +22,7 @@ import { VedicClockState } from '../models';
 import { colors } from '../theme';
 import { GiltArch } from './GiltArch';
 import { EngravedText } from './EngravedText';
+const AnimatedG = Animated.createAnimatedComponent(G);
 import { HeroDigits } from './HeroDigits';
 import { RASHI_ICONS } from '../data/rashiAssets';
 import { NAKSHATRA_ICONS } from '../data/nakshatraAssets';
@@ -136,33 +137,15 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const targetKaranaSlot = state.panchang?.karana?.slot ?? 0;
   const targetYogaFraction = state.panchang?.yoga?.progressFraction ?? 0;
 
-  const [animKaranaSlot, setAnimKaranaSlot] = useState(0);
-  const [animYogaFraction, setAnimYogaFraction] = useState(0);
-
+  const glowAnim = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
-    let start = Date.now();
-    let duration = 1200; // 1.2 second fill animation
-    let frameId: number;
-
-    const animate = () => {
-      const progress = Math.min((Date.now() - start) / duration, 1);
-      const easeOut = 1 - Math.pow(1 - progress, 4); // easeOutQuart
-
-      setAnimKaranaSlot(targetKaranaSlot * easeOut);
-      setAnimYogaFraction(targetYogaFraction * easeOut);
-
-      if (progress < 1) {
-        frameId = requestAnimationFrame(animate);
-      } else {
-        // ensure exact values at end
-        setAnimKaranaSlot(targetKaranaSlot);
-        setAnimYogaFraction(targetYogaFraction);
-      }
-    };
-
-    frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
-  }, [targetKaranaSlot, targetYogaFraction]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [glowAnim]);
 
   // Scale factor for text and spacing (normalized to size 600)
   const scale = size / 600;
@@ -305,17 +288,19 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const r_yoga_tick_end = r_text_bottom + 44 * scale;
   const r_yoga_label = r_text_bottom + 62 * scale;
 
-  const yogaTicks: { x1: number; y1: number; x2: number; y2: number; isActive: boolean; key: number }[] = [];
+  const r_yoga_mid = (r_yoga_tick_start + r_yoga_tick_end) / 2;
+  const yogaTicks: { cx: number; cy: number; rotation: number; isActive: boolean; isCurrent: boolean; key: number }[] = [];
+  const currentYogaIndex = Math.max(0, Math.min(59, Math.floor(targetYogaFraction * 60)));
   for (let i = 0; i < 60; i++) {
     const angleDeg = yogaStartAngleDeg - (i / 59) * yogaAngleSpan;
     const angleRad = angleDeg * Math.PI / 180;
     yogaTicks.push({
       key: i,
-      x1: svgHalf + r_yoga_tick_start * Math.cos(angleRad),
-      y1: svgHalf + r_yoga_tick_start * Math.sin(angleRad),
-      x2: svgHalf + r_yoga_tick_end * Math.cos(angleRad),
-      y2: svgHalf + r_yoga_tick_end * Math.sin(angleRad),
-      isActive: (i / 59) <= animYogaFraction,
+      cx: svgHalf + r_yoga_mid * Math.cos(angleRad),
+      cy: svgHalf + r_yoga_mid * Math.sin(angleRad),
+      rotation: angleDeg + 90,
+      isActive: i <= currentYogaIndex,
+      isCurrent: i === currentYogaIndex,
     });
   }
 
@@ -332,17 +317,19 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const r_karana_label = r_text_top + 58 * scale;
 
   // 60 tick lines coordinates
-  const karanaTicks: { x1: number; y1: number; x2: number; y2: number; isActive: boolean; key: number }[] = [];
+  const r_karana_mid = (r_karana_tick_start + r_karana_tick_end) / 2;
+  const karanaTicks: { cx: number; cy: number; rotation: number; isActive: boolean; isCurrent: boolean; key: number }[] = [];
+  const currentKaranaIndex = Math.max(0, Math.min(59, targetKaranaSlot - 1));
   for (let i = 0; i < 60; i++) {
     const angleDeg = karanaStartAngleDeg + (i / 59) * karanaAngleSpan;
     const angleRad = angleDeg * Math.PI / 180;
     karanaTicks.push({
       key: i,
-      x1: svgHalf + r_karana_tick_start * Math.cos(angleRad),
-      y1: svgHalf + r_karana_tick_start * Math.sin(angleRad),
-      x2: svgHalf + r_karana_tick_end * Math.cos(angleRad),
-      y2: svgHalf + r_karana_tick_end * Math.sin(angleRad),
-      isActive: (i + 1) <= animKaranaSlot,
+      cx: svgHalf + r_karana_mid * Math.cos(angleRad),
+      cy: svgHalf + r_karana_mid * Math.sin(angleRad),
+      rotation: angleDeg + 90,
+      isActive: i <= currentKaranaIndex,
+      isCurrent: i === currentKaranaIndex,
     });
   }
 
@@ -513,14 +500,19 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
         {renderCurvedWords(`योग : ${state.panchang?.yoga?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 90, false, true, undefined, ARCH_BUDGET_DEG)}
 
         {/* Yoga Progressive Bar */}
-        {yogaTicks.map((tick) => (
-          <Path
-            key={tick.key}
-            d={`M ${tick.x1} ${tick.y1} L ${tick.x2} ${tick.y2}`}
-            stroke={tick.isActive ? colors.highlight : 'rgba(255, 255, 255, 0.5)'}
-            strokeWidth={1.2 * scale}
-          />
-        ))}
+        {yogaTicks.map((tick) => {
+          const Node = tick.isCurrent ? AnimatedG : G;
+          return (
+            <Node key={tick.key} x={tick.cx} y={tick.cy} rotation={tick.rotation} origin="0, 0" opacity={tick.isCurrent ? glowAnim : 1}>
+              <Path
+                d={`M 0 ${7 * scale} C ${-3.5 * scale} ${1.4 * scale}, ${-4.2 * scale} ${-4.2 * scale}, 0 ${-7 * scale} C ${4.2 * scale} ${-4.2 * scale}, ${3.5 * scale} ${1.4 * scale}, 0 ${7 * scale} Z`}
+                fill={tick.isActive ? '#FF9933' : 'rgba(255, 255, 255, 0.1)'}
+                stroke={tick.isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.2)'}
+                strokeWidth={0.8 * scale}
+              />
+            </Node>
+          );
+        })}
 
         {/* Yoga Percentage Label */}
         {renderCurvedWords(`${targetPercentage}/100`, svgHalf, svgHalf, r_yoga_label, yogaLabelAngleDeg, false, false, 20 * scale)}
@@ -536,14 +528,19 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
         {/* Karana (Top-Center) */}
         {renderCurvedWords(`करण : ${state.panchang?.karana?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 270, true, true, undefined, ARCH_BUDGET_DEG)}
 
-        {karanaTicks.map((tick) => (
-          <Path
-            key={tick.key}
-            d={`M ${tick.x1} ${tick.y1} L ${tick.x2} ${tick.y2}`}
-            stroke={tick.isActive ? colors.highlight : 'rgba(255, 255, 255, 0.5)'}
-            strokeWidth={1.2 * scale}
-          />
-        ))}
+        {karanaTicks.map((tick) => {
+          const Node = tick.isCurrent ? AnimatedG : G;
+          return (
+            <Node key={tick.key} x={tick.cx} y={tick.cy} rotation={tick.rotation} origin="0, 0" opacity={tick.isCurrent ? glowAnim : 1}>
+              <Path
+                d={`M 0 ${7 * scale} C ${-3.5 * scale} ${1.4 * scale}, ${-4.2 * scale} ${-4.2 * scale}, 0 ${-7 * scale} C ${4.2 * scale} ${-4.2 * scale}, ${3.5 * scale} ${1.4 * scale}, 0 ${7 * scale} Z`}
+                fill={tick.isActive ? '#FF9933' : 'rgba(255, 255, 255, 0.1)'}
+                stroke={tick.isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.2)'}
+                strokeWidth={0.8 * scale}
+              />
+            </Node>
+          );
+        })}
 
         {/* Karana Active Slot Label */}
         {renderCurvedWords(`${targetKaranaSlot}/60`, svgHalf, svgHalf, r_karana_label + (15 * scale), activeAngleDeg, true, false, 20 * scale)}
