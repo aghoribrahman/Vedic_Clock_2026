@@ -32,24 +32,31 @@ export function BottomStrip({ state, location, onChangeLocation }: Props): JSX.E
   const rosetteSize = Math.max(22, Math.min(42, 32 * scale));
   const horizontalGap = isPortrait ? 8 : 20 * scale;
 
+  const { width } = responsive;
+  // Cap corner block width so it never overflows on small screens
+  const cornerW = Math.min(380 * scale, width * 0.32);
+  const cornerBgW = Math.min(450 * scale, width * 0.38);
+  const cornerBgH = cornerBgW * (260 / 450);
+
   return (
     <View style={[styles.container, { height: bottomStripHeight, justifyContent: 'space-between', paddingHorizontal: 12 * scale }]}>
       {/* Block 1: Samvat */}
       <View style={[styles.cornerStack, { width: 260 * scale, transform: [{ translateY: -15 * scale }] }]}>
         <Image
+          testID="yantra-rosette"
           source={require('../../assets/images/corner_assest.png')}
           style={[styles.cornerBg, { width: 280 * scale, height: 140 * scale }]}
           resizeMode="stretch"
         />
         <View style={styles.cornerContent}>
-          <EngravedText text={state.vikramSamvatYear.toString()} fontSize={16 * scale} />
+          <EngravedText text={state.vikramSamvatYear?.toString() ?? ''} fontSize={16 * scale} />
           <Text style={[styles.bookendEn, { fontSize: 11 * scale, marginTop: 4 * scale, marginBottom: 4 * scale }]} numberOfLines={1}>
             विक्रम संवत्
           </Text>
         </View>
       </View>
 
-      <View style={{ alignItems: 'center' }} />
+      <View style={{ flex: 1 }} />
 
       {/* Block 2: Location (tappable to change) */}
       <TouchableOpacity
@@ -58,6 +65,7 @@ export function BottomStrip({ state, location, onChangeLocation }: Props): JSX.E
         activeOpacity={onChangeLocation ? 0.7 : 1}
       >
         <Image
+          testID="yantra-rosette"
           source={require('../../assets/images/corner_assest.png')}
           style={[styles.cornerBg, { width: 280 * scale, height: 140 * scale }]}
           resizeMode="stretch"

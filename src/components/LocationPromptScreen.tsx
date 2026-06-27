@@ -175,7 +175,7 @@ export function LocationPromptScreen({ onLocationSelected }: Props): JSX.Element
       )}
 
       {/* GPS Button */}
-      <TouchableOpacity style={s.gpsButton} onPress={handleGPS} activeOpacity={0.8}>
+      <TouchableOpacity testID="gps-button" style={s.gpsButton} onPress={handleGPS} activeOpacity={0.8}>
         <Text style={s.gpsButtonIcon}>📍</Text>
         <Text style={s.gpsButtonText}>Use Current Location</Text>
       </TouchableOpacity>

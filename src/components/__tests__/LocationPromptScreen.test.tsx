@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { LocationPromptScreen } from '../LocationPromptScreen';
 import * as ResponsiveHook from '../../hooks/useResponsive';
 
@@ -28,11 +29,13 @@ describe('LocationPromptScreen Responsiveness', () => {
 
     // Verify the title font size scaled down to 24 (32 * 0.75)
     const title = getByText('विक्रमादित्य वैदिक घड़ी');
-    expect(title.props.style.fontSize).toBe(24);
+    const titleStyle = StyleSheet.flatten(title.props.style);
+    expect(titleStyle.fontSize).toBe(24);
 
     // Verify the container padding scaled down to 24 (32 * 0.75)
     const container = title.parent.parent;
-    expect(container.props.style.paddingHorizontal).toBe(24);
+    const containerStyle = StyleSheet.flatten(container.props.style);
+    expect(containerStyle.paddingHorizontal).toBe(24);
   });
 
   it('scales asset sizes and layout paddings up for TV (scale 2.0)', () => {
@@ -50,20 +53,21 @@ describe('LocationPromptScreen Responsiveness', () => {
       scaleFont: (size) => size * 2.0,
     });
 
-    const { getByText } = render(
+    const { getByText, getByTestId } = render(
       <LocationPromptScreen onLocationSelected={jest.fn()} />
     );
 
     // Verify the title font size scaled up to 64 (32 * 2.0)
     const title = getByText('विक्रमादित्य वैदिक घड़ी');
-    expect(title.props.style.fontSize).toBe(64);
+    const titleStyle = StyleSheet.flatten(title.props.style);
+    expect(titleStyle.fontSize).toBe(64);
 
     // Verify the GPS button padding and border scaled up
-    const gpsButtonText = getByText('Use Current Location');
-    const gpsButton = gpsButtonText.parent;
+    const gpsButton = getByTestId('gps-button');
+    const flatStyle = StyleSheet.flatten(gpsButton.props.style);
     
-    expect(gpsButton.props.style.paddingVertical).toBe(32); // 16 * 2.0
-    expect(gpsButton.props.style.paddingHorizontal).toBe(64); // 32 * 2.0
-    expect(gpsButton.props.style.borderWidth).toBe(3); // 1.5 * 2.0
+    expect(flatStyle.paddingVertical).toBe(32); // 16 * 2.0
+    expect(flatStyle.paddingHorizontal).toBe(64); // 32 * 2.0
+    expect(flatStyle.borderWidth).toBe(3); // 1.5 * 2.0
   });
 });

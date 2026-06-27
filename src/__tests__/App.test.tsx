@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import App from '../App';
+import App from '../../App';
 import * as ResponsiveHook from '../hooks/useResponsive';
 import * as LocationHook from '../hooks/useLocation';
 import * as ClockHook from '../hooks/useVedicClock';

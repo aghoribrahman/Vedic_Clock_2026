@@ -53,11 +53,18 @@ export function TopBar({ state }: Props): JSX.Element {
 
   const { vara } = state.panchang;
 
+  const { width } = responsive;
+  // Cap corner block width so it never overflows on small screens
+  const cornerW = Math.min(380 * scale, width * 0.32);
+  const cornerBgW = Math.min(450 * scale, width * 0.38);
+  const cornerBgH = cornerBgW * (260 / 450);
+
   return (
     <View style={[styles.container, glass.panel, { height: topBarHeight, paddingHorizontal: 12 * scale, marginTop: 40 * scale }]}>
       <View style={[styles.row, { justifyContent: 'space-between' }]}>
         <View style={[styles.cornerStack, { width: 260 * scale }]}>
           <Image
+            testID="yantra-rosette"
             source={require('../../assets/images/corner_assest.png')}
             style={[styles.cornerBg, { width: 280 * scale, height: 140 * scale }]}
             resizeMode="stretch"
@@ -67,7 +74,7 @@ export function TopBar({ state }: Props): JSX.Element {
             <Text style={[styles.timeSmall, { fontSize: 11 * scale, marginTop: 4 * scale, marginBottom: 4 * scale }]}>{`${t24} IST`}</Text>
           </View>
         </View>
-        <View style={{ alignItems: 'center' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           {state.todayFestival ? (
             <Text style={[styles.taglineFestival, { fontSize: scaleFont(14) }]} numberOfLines={1}>
               ✦  {tagline}  ✦
@@ -76,6 +83,7 @@ export function TopBar({ state }: Props): JSX.Element {
         </View>
         <View style={[styles.cornerStack, { width: 260 * scale }]}>
           <Image
+            testID="yantra-rosette"
             source={require('../../assets/images/corner_assest.png')}
             style={[styles.cornerBg, { width: 280 * scale, height: 140 * scale }]}
             resizeMode="stretch"

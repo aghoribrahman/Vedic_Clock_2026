@@ -38,3 +38,27 @@ jest.mock('@expo-google-fonts/tiro-devanagari-hindi', () => ({
   useFonts: () => [true, null],
   TiroDevanagariHindi_400Regular: 0,
 }));
+
+jest.mock('expo-video', () => {
+  return {
+    useVideoPlayer: jest.fn((source, setup) => {
+      const player = {
+        loop: false,
+        muted: false,
+        staysActiveInBackground: false,
+        play: jest.fn(),
+        pause: jest.fn(),
+        addListener: jest.fn(() => ({ remove: jest.fn() })),
+      };
+      if (setup) setup(player);
+      return player;
+    }),
+    VideoView: 'VideoView',
+  };
+});
+
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
+

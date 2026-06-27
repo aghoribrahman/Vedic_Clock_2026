@@ -134,9 +134,8 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const ringOuterR = half * 0.94; // slightly larger for the brass texture
   const ringInnerR = half * 0.70;
 
-  // ── Animated Progress States ──────────────────────────────────────────
-  const targetKaranaSlot = state.panchang.karana.slot;
-  const targetYogaFraction = state.panchang.yoga.progressFraction;
+  const targetKaranaSlot = state.panchang?.karana?.slot ?? 0;
+  const targetYogaFraction = state.panchang?.yoga?.progressFraction ?? 0;
 
   const [animKaranaSlot, setAnimKaranaSlot] = useState(0);
   const [animYogaFraction, setAnimYogaFraction] = useState(0);
@@ -259,9 +258,9 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const sunX = half + bottomCutoutX - rashiBgSize / 2;
   const sunY = frameCenterY + bottomCutoutY - rashiBgSize / 2;
 
-  const formatTimeIst = (d: Date) => d.toLocaleTimeString('en-US', {
+  const formatTimeIst = (d?: Date) => d ? d.toLocaleTimeString('en-US', {
     timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit'
-  });
+  }) : '';
   const sunriseStr = formatTimeIst(state.sunriseUtc);
   const sunsetStr = formatTimeIst(state.sunsetUtc);
 
@@ -367,7 +366,7 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   }
 
   // Karana calculations (centered at 270 degrees, spanning 255 to 285 degrees)
-  const karanaIsFixed = state.panchang.karana.isFixed;
+  const karanaIsFixed = state.panchang?.karana?.isFixed ?? false;
   const karanaSubMeaning = karanaIsFixed ? 'स्थिर' : 'चर';
 
   // Tick line parameters
@@ -557,10 +556,10 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
 
         {/* Left Arch (Moon Rashi) */}
 
-        {renderCurvedWords(`चन्द्र राशि : ${state.panchang.moonRashi.nameHi}`, svgHalf, svgHalf, r_text_bottom, 135, false, true)}
+        {renderCurvedWords(`चन्द्र राशि : ${state.panchang?.moonRashi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 135, false, true)}
 
         {/* Bottom-Center Arch (Yoga) */}
-        {renderCurvedWords(`योग : ${state.panchang.yoga.nameHi}`, svgHalf, svgHalf, r_text_bottom, 90, false, true)}
+        {renderCurvedWords(`योग : ${state.panchang?.yoga?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 90, false, true)}
 
         {/* Yoga Progressive Bar */}
         {yogaTicks.map((tick) => (
@@ -577,14 +576,14 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
 
         {/* Right Arch (Sun Rashi) */}
 
-        {renderCurvedWords(`सूर्य राशि : ${state.panchang.sunRashi.nameHi}`, svgHalf, svgHalf, r_text_bottom, 45, false, true)}
+        {renderCurvedWords(`सूर्य राशि : ${state.panchang?.sunRashi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 45, false, true)}
 
         {/* Top-Left Arch (Nakshatra) */}
 
-        {renderCurvedWords(`नक्षत्र : ${state.panchang.nakshatra.nameHi}`, svgHalf, svgHalf, r_text_top, 225, true, true)}
+        {renderCurvedWords(`नक्षत्र : ${state.panchang?.nakshatra?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 225, true, true)}
 
         {/* Karana (Top-Center) */}
-        {renderCurvedWords(`करण : ${state.panchang.karana.nameHi}`, svgHalf, svgHalf, r_text_top, 270, true, true)}
+        {renderCurvedWords(`करण : ${state.panchang?.karana?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 270, true, true)}
 
         {karanaTicks.map((tick) => (
           <Path
@@ -601,7 +600,7 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
         {/* Top-Right Arch (Tithi) */}
 
         {/* Top-Right Text (Tithi) */}
-        {renderCurvedWords(`तिथि : ${state.panchang.tithi.nameHi}`, svgHalf, svgHalf, r_text_top, 315, true, true)}
+        {renderCurvedWords(`तिथि : ${state.panchang?.tithi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 315, true, true)}
 
       </Svg>
 
@@ -645,32 +644,45 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
               styles.rashiLabel,
               {
                 fontSize: 24 * scale,
-                marginTop: 24 * scale,
+                marginTop: 16 * scale,
                 letterSpacing: 1 * scale,
               }
             ]}
             numberOfLines={1}
           >
-            देवता : {DEITY_HI[state.muhurta.deity] || state.muhurta.deity}
+            {state.muhurta?.devanagari ?? ''} · {state.muhurta?.name ?? ''}
+          </Text>
+          <Text
+            style={[
+              styles.rashiLabel,
+              {
+                fontSize: 24 * scale,
+                marginTop: 8 * scale,
+                letterSpacing: 1 * scale,
+              }
+            ]}
+            numberOfLines={1}
+          >
+            देवता : {state.muhurta ? (DEITY_HI[state.muhurta.deity] || state.muhurta.deity) : ''}
           </Text>
         </View>
       </View>
 
       {/* Floating Icons */}
       <View style={[styles.rashiFloatingContainer, { left: moonX, top: moonY, width: rashiBgSize, height: rashiBgSize }]}>
-        <AnimatedIcon index={state.panchang.moonRashi.index} size={rashiSize} scale={scale} icons={RASHI_ICONS} />
+        <AnimatedIcon index={state.panchang?.moonRashi?.index ?? 0} size={rashiSize} scale={scale} icons={RASHI_ICONS} />
       </View>
 
       <View style={[styles.rashiFloatingContainer, { left: sunX, top: sunY, width: rashiBgSize, height: rashiBgSize }]}>
-        <AnimatedIcon index={state.panchang.sunRashi.index} size={rashiSize} scale={scale} icons={RASHI_ICONS} />
+        <AnimatedIcon index={state.panchang?.sunRashi?.index ?? 0} size={rashiSize} scale={scale} icons={RASHI_ICONS} />
       </View>
 
       <View style={[styles.rashiFloatingContainer, { left: nakshatraX, top: nakshatraY, width: rashiBgSize, height: rashiBgSize }]}>
-        <AnimatedIcon index={state.panchang.nakshatra.index} size={rashiSize} scale={scale} icons={NAKSHATRA_ICONS} />
+        <AnimatedIcon index={state.panchang?.nakshatra?.index ?? 0} size={rashiSize} scale={scale} icons={NAKSHATRA_ICONS} />
       </View>
 
       <View style={[styles.rashiFloatingContainer, { left: tithiX, top: tithiY, width: rashiBgSize, height: rashiBgSize }]}>
-        <AnimatedIcon index={state.panchang.tithi.index} size={rashiSize} scale={scale} icons={TITHI_ICONS} />
+        <AnimatedIcon index={state.panchang?.tithi?.index ?? 0} size={rashiSize} scale={scale} icons={TITHI_ICONS} />
       </View>
 
       {/* ── Capsule Text Overlays ── */}

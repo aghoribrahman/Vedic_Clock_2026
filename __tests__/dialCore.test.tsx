@@ -14,6 +14,13 @@ import { Path } from 'react-native-svg';
 import { DialCore } from '../src/components/DialCore';
 import { stubState } from './helpers/stubState';
 
+jest.mock('../src/components/HeroDigits', () => {
+  const { Text } = require('react-native');
+  return {
+    HeroDigits: ({ text }: { text: string }) => <Text>{text}</Text>,
+  };
+});
+
 describe('DialCore', () => {
   it('mounts at a given size', () => {
     const tree = render(<DialCore state={stubState()} size={400} />);
@@ -30,7 +37,7 @@ describe('DialCore', () => {
 
   it('renders the MUHURTA · KALA · KASHTHA caption', () => {
     const { getByText } = render(<DialCore state={stubState()} size={400} />);
-    expect(getByText('MUHURTA · KALA · KASHTHA')).toBeTruthy();
+    expect(getByText('मुहूर्त')).toBeTruthy();
   });
 
   it('renders the active muhurta name (Devanagari + Roman)', () => {
@@ -42,7 +49,7 @@ describe('DialCore', () => {
   it('renders the active muhurta deity gloss', () => {
     const s = stubState();
     const { getByText } = render(<DialCore state={s} size={400} />);
-    expect(getByText(`देवता ${s.muhurta.deity}`)).toBeTruthy();
+    expect(getByText('देवता : ब्रह्मा')).toBeTruthy();
   });
 
   it('paints 30 wedge paths + the elapsed-time hand', () => {

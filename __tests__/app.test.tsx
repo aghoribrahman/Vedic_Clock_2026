@@ -1,20 +1,27 @@
-/**
- * App-level integration tests — full mount of the root component.
- *
- * Locks down the cross-component invariant that survived the rosette
- * refactor in the Flutter codebase: exactly **four** corner yantra
- * rosettes anchor the layout (2 in TopBar + 2 in BottomStrip).
- *
- * NOTE: `useVedicClock` ticks a real `setInterval`; we keep the mount
- * + assertions synchronous so the tests don't depend on the timer
- * firing.
- */
-
 import { render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import App from '../App';
+import * as LocationHook from '../src/hooks/useLocation';
+
+jest.mock('../src/hooks/useLocation');
+jest.mock('expo-font', () => ({
+  useFonts: () => [true, null],
+}));
+jest.mock('expo-asset', () => ({
+  useAssets: () => [[{}], null],
+}));
 
 describe('App', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(LocationHook, 'useLocation').mockReturnValue({
+      location: { cityHi: 'Test', latitude: 0, longitude: 0, heightMeters: 0, city: 'Test' },
+      isLoading: false,
+      saveLocation: jest.fn(),
+      clearLocation: jest.fn(),
+    });
+  });
+
   it('mounts without crashing', () => {
     const tree = render(<App />);
     expect(tree.toJSON()).toBeTruthy();
