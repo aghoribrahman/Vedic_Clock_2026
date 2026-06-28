@@ -13,20 +13,31 @@
 
 import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useLoader, useThree, extend } from '@react-three/fiber';
-import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
-
-extend({ OrbitControlsImpl });
 import * as THREE from 'three';
 import { View, Platform } from 'react-native';
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+/**
+ * On Expo Web, require('image.jpg') may return either:
+ *   - A plain string URL (older Metro configs)
+ *   - A Metro asset object like { uri: "...", width: N, height: N }
+ * THREE.TextureLoader needs a raw URL string, so we unwrap it here.
+ */
+function resolveWebAsset(asset: any): string {
+  if (typeof asset === 'string') return asset;
+  if (asset && typeof asset === 'object' && typeof asset.uri === 'string') return asset.uri;
+  if (asset && typeof asset === 'object' && typeof asset.default === 'string') return asset.default;
+  // Last resort — some bundlers return a number ID; we can't use that on web
+  console.warn('Earth3D.web: unexpected asset format', asset);
+  return '';
+}
+
 // ── Earth texture asset ────────────────────────────────────────────────
-// Using require() for Metro bundler compatibility (Expo/RN).
-// On web this resolves to a URL; on native it resolves to a local asset.
-const EARTH_TEXTURE = require('../../assets/earth.jpg');
-const EARTH_NORMAL = require('../../assets/images/earth_normal.jpg');
-const EARTH_SPECULAR = require('../../assets/images/earth_specular.jpg');
-const EARTH_CLOUDS = require('../../assets/images/earth_clouds.png');
-const EARTH_NIGHT = require('../../assets/images/earth_night.jpg');
+const EARTH_TEXTURE = resolveWebAsset(require('../../assets/earth.jpg'));
+const EARTH_NORMAL = resolveWebAsset(require('../../assets/images/earth_normal.jpg'));
+const EARTH_SPECULAR = resolveWebAsset(require('../../assets/images/earth_specular.jpg'));
+const EARTH_CLOUDS = resolveWebAsset(require('../../assets/images/earth_clouds.png'));
+const EARTH_NIGHT = resolveWebAsset(require('../../assets/images/earth_night.jpg'));
 
 interface Earth3DProps {
   /** Diameter in logical pixels for the container */
@@ -41,25 +52,32 @@ interface Earth3DProps {
 function EarthSphere(): React.JSX.Element {
   const meshRef = useRef<THREE.Mesh>(null);
 
-  // Load the Earth textures
+  // Load the Earth textures using React Native compatible useTexture
   const [dayMap, normalMap, specularMap, nightMap] = useLoader(THREE.TextureLoader, [
-    resolveAssetUri(EARTH_TEXTURE),
-    resolveAssetUri(EARTH_NORMAL),
-    resolveAssetUri(EARTH_SPECULAR),
-    resolveAssetUri(EARTH_NIGHT),
+    EARTH_TEXTURE,
+    EARTH_NORMAL,
+    EARTH_SPECULAR,
+    EARTH_NIGHT,
   ]);
 
   const { gl } = useThree();
   const maxAnisotropy = useMemo(() => gl.capabilities.getMaxAnisotropy(), [gl]);
 
-  // Configure texture for best quality
+  // Configure texture for best quality and correct color space
   useMemo(() => {
     dayMap.colorSpace = THREE.SRGBColorSpace;
+    dayMap.needsUpdate = true;
+    
     nightMap.colorSpace = THREE.SRGBColorSpace;
+    nightMap.needsUpdate = true;
+    
     dayMap.anisotropy = maxAnisotropy;
     nightMap.anisotropy = maxAnisotropy;
     normalMap.anisotropy = maxAnisotropy;
     specularMap.anisotropy = maxAnisotropy;
+    
+    normalMap.needsUpdate = true;
+    specularMap.needsUpdate = true;
   }, [dayMap, nightMap, normalMap, specularMap, maxAnisotropy]);
 
   // Slow continuous rotation
@@ -127,7 +145,7 @@ function EarthSphere(): React.JSX.Element {
  */
 function CloudSphere(): React.JSX.Element {
   const meshRef = useRef<THREE.Mesh>(null);
-  const cloudMap = useLoader(THREE.TextureLoader, resolveAssetUri(EARTH_CLOUDS));
+  const cloudMap = useLoader(THREE.TextureLoader, EARTH_CLOUDS);
 
   useFrame((_state, delta) => {
     if (meshRef.current) {
@@ -200,25 +218,9 @@ function AtmosphereGlow(): React.JSX.Element {
   );
 }
 
+// Controls disabled for Native compatibility
 function Controls(): React.JSX.Element | null {
-  const { camera, gl } = useThree();
-  
-  if (Platform.OS !== 'web') {
-    return null; // OrbitControls requires DOM APIs, so disable on native
-  }
-
-  return (
-    // @ts-ignore - orbitControlsImpl is added via extend()
-    <orbitControlsImpl
-      args={[camera, gl.domElement]}
-      enablePan={false}
-      enableZoom={true}
-      minDistance={1.2}
-      maxDistance={4.0}
-      zoomSpeed={0.8}
-      rotateSpeed={0.25}
-    />
-  );
+  return null;
 }
 
 /**
@@ -227,12 +229,12 @@ function Controls(): React.JSX.Element | null {
 function EarthScene(): React.JSX.Element {
   return (
     <>
-      {/* Ambient fill so the dark side isn't pitch black - increased for overall brightness */}
-      <ambientLight intensity={0.8} />
-      {/* Main sunlight from upper-right - increased for brighter highlights */}
-      <directionalLight position={[5, 3, 5]} intensity={2.0} />
+      {/* Ambient fill so the dark side isn't pitch black */}
+      <ambientLight intensity={0.3} />
+      {/* Main sunlight from upper-right */}
+      <directionalLight position={[5, 3, 5]} intensity={1.5} />
       {/* Subtle rim light from behind */}
-      <directionalLight position={[-3, -1, -5]} intensity={0.4} />
+      <directionalLight position={[-3, -1, -5]} intensity={0.2} />
 
       <group scale={[0.8505, 0.8505, 0.8505]}>
         <EarthSphere />
@@ -242,6 +244,26 @@ function EarthScene(): React.JSX.Element {
       <Controls />
     </>
   );
+}
+
+class EarthErrorBoundary extends React.Component<React.PropsWithChildren, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: any) {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }} />
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ── Main exported component ────────────────────────────────────────────
@@ -256,47 +278,30 @@ export function Earth3D({ size }: Earth3DProps): React.JSX.Element {
         overflow: 'hidden',
       }}
     >
-      <Canvas
-        dpr={[1, 2]}
-        gl={{
-          alpha: true,
-          antialias: true,
-          powerPreference: 'high-performance',
-        }}
-        // Pulled camera back from 2.4 to 2.8 to ensure the complete Earth fits
-        camera={{ position: [0, 0, 2.8], fov: 45 }}
-        style={{
-          width: size,
-          height: size,
-          backgroundColor: 'transparent',
-        }}
-      >
-        <React.Suspense fallback={null}>
-          <EarthScene />
-        </React.Suspense>
-      </Canvas>
+      <EarthErrorBoundary>
+        <Canvas
+          dpr={[1, 2]}
+          gl={{
+            alpha: true,
+            antialias: true,
+            powerPreference: 'high-performance',
+          }}
+          // Pulled camera back from 2.4 to 2.8 to ensure the complete Earth fits
+          camera={{ position: [0, 0, 2.8], fov: 45 }}
+          style={{
+            width: size,
+            height: size,
+            backgroundColor: 'transparent',
+          }}
+        >
+          <React.Suspense fallback={null}>
+            <EarthScene />
+          </React.Suspense>
+        </Canvas>
+      </EarthErrorBoundary>
     </View>
   );
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Resolve a Metro-bundled asset (require()) into a URI string that
- * Three.js TextureLoader can consume.
- *
- * On **web**, `require('image.jpg')` already returns a string URL.
- * On **native**, it returns a numeric asset ID — we use expo-asset
- * to resolve it to a local file URI.
- */
-function resolveAssetUri(asset: string | number): string {
-  if (typeof asset === 'string') {
-    // Web: already a URL
-    return asset;
-  }
-  // Native: resolve via expo-asset
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { Asset } = require('expo-asset');
-  const resolved = Asset.fromModule(asset);
-  return resolved.localUri || resolved.uri;
-}
+// No manual asset resolution needed as useTexture handles numeric module IDs internally.

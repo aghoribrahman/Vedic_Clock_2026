@@ -7,6 +7,12 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0D1B2A",
     "primaryColor": "#E8B94B",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D1B2A"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],

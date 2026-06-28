@@ -48,27 +48,44 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function App(): JSX.Element {
-  const [assets] = useAssets(ALL_ASSETS);
+  const [assets, assetError] = useAssets(ALL_ASSETS);
   const assetsLoaded = !!assets;
 
-  const [interLoaded] = useInter({
+  if (assetError) {
+    console.error("Asset loading error:", assetError);
+  }
+
+  const [interLoaded, interError] = useInter({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
-  const [tiroLoaded] = useTiro({
+  if (interError) console.error("Inter font error:", interError);
+
+  const [tiroLoaded, tiroError] = useTiro({
     TiroDevanagariHindi_400Regular,
   });
+  if (tiroError) console.error("Tiro font error:", tiroError);
+
   const fontsLoaded = interLoaded && tiroLoaded;
+
+  // Fallback to avoid infinite splash screen if something fails to load
+  useEffect(() => {
+    if (assetError || interError || tiroError) {
+      console.warn("Forcing splash screen to hide due to load error");
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [assetError, interError, tiroError]);
 
   const { location, isLoading: locationLoading, saveLocation, clearLocation } = useLocation();
 
-  const onLayoutRoot = useCallback(async () => {
-    if (fontsLoaded && assetsLoaded) {
-      await SplashScreen.hideAsync().catch(() => { });
+  // Hide splash screen when fonts and assets are fully loaded
+  useEffect(() => {
+    if (fontsLoaded && assetsLoaded && !locationLoading) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, assetsLoaded]);
+  }, [fontsLoaded, assetsLoaded, locationLoading]);
 
   // Support responsive landscape/portrait rotation + keep screen awake.
   useEffect(() => {
@@ -90,20 +107,18 @@ export default function App(): JSX.Element {
     return <LocationPromptScreen onLocationSelected={saveLocation} />;
   }
 
-  // Dial & Wing fitting computations
-  const wingWidth = isPortrait
-    ? (width - spacing * 3) / 2
-    : Math.min(220, width * 0.2) * responsive.scale;
-
-  // Force dial to 95% of available physical space.
-  // Use a tier-aware divisor: on mobile the dial needs more room relative
-  // to bars; on TV / billboard the bars are proportionally smaller but the SVG extends 1.7x the dial size.
-  const maxDialPhysicalSize = Math.min(width, height) * 0.95;
-  const dialDivisor = tier === 'mobile' ? 1.45 : tier === 'tablet' ? 1.65 : 2.0;
-  const dialSize = maxDialPhysicalSize / dialDivisor;
+  // Dial sizing — maximize the dial while ensuring its full visual extent fits.
+  // The SVG arches extend ~1.55× vertically and ~1.75× horizontally beyond
+  // the dial's core bounding box. We compute the largest dial where everything
+  // stays on screen — no clipping, no overflow.
+  const idealSize = Math.min(width, height) * 0.95
+    / (tier === 'mobile' ? 1.45 : tier === 'tablet' ? 1.65 : 2.0);
+  const maxForWidth = width / 1.75;
+  const maxForHeight = height / 1.55;
+  const dialSize = Math.min(idealSize, maxForWidth, maxForHeight) * 0.95; // 5% smaller for breathing room
 
   return (
-    <View style={styles.root} onLayout={onLayoutRoot}>
+    <View style={styles.root}>
       <StatusBar hidden />
       {state && <LivingSkyBackdrop />}
 

@@ -11,6 +11,13 @@ export const ALL_ASSETS = [
   require('../assets/Rotating_Earth.mp4'),
   require('../assets/bg0.mp4'),
   
+  // Earth Textures
+  require('../assets/earth.jpg'),
+  require('../assets/images/earth_normal.jpg'),
+  require('../assets/images/earth_specular.jpg'),
+  require('../assets/images/earth_clouds.png'),
+  require('../assets/images/earth_night.jpg'),
+  
   // Digits
   require('../assets/numbers/colon.png'),
   require('../assets/numbers/0.png'),
