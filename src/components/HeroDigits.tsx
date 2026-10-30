@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View, StyleProp, ViewStyle } from 'react-native';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 const NUMBER_IMAGES: { [key: string]: any } = {
   '0': require('../../assets/numbers/0.png'),
@@ -23,10 +23,9 @@ interface AnimatedDigitProps {
   digit: string;
   width: number;
   height: number;
-  style?: StyleProp<ViewStyle>;
 }
 
-function AnimatedDigit({ digit, width, height, style }: AnimatedDigitProps): React.JSX.Element {
+const AnimatedDigit = React.memo(function AnimatedDigit({ digit, width, height }: AnimatedDigitProps): React.JSX.Element {
   const [prevDigit, setPrevDigit] = useState<string>(digit);
   const [currDigit, setCurrDigit] = useState<string>(digit);
 
@@ -70,7 +69,7 @@ function AnimatedDigit({ digit, width, height, style }: AnimatedDigitProps): Rea
   });
 
   return (
-    <View style={[{ width, height, overflow: 'hidden', position: 'relative' }, style]}>
+    <View style={{ width, height, marginHorizontal: -width * 0.05, overflow: 'hidden', position: 'relative' }}>
       {/* If transitioning, render the previous digit sliding down */}
       {prevDigit !== currDigit && (
         <Animated.Image
@@ -100,7 +99,7 @@ function AnimatedDigit({ digit, width, height, style }: AnimatedDigitProps): Rea
       />
     </View>
   );
-}
+});
 
 interface Props {
   text: string;
@@ -108,7 +107,7 @@ interface Props {
   scale?: number;
 }
 
-export function HeroDigits({ text, big = false, scale = 1 }: Props): React.JSX.Element {
+export const HeroDigits = React.memo(function HeroDigits({ text, big = false, scale = 1 }: Props): React.JSX.Element {
   const digits = text.split('');
   const height = (big ? 112 : 98) * scale * 1.0;
   const width = height * 0.85; // Generously wide so all digits are bottlenecked by height and scale to identical vertical bounds
@@ -121,14 +120,11 @@ export function HeroDigits({ text, big = false, scale = 1 }: Props): React.JSX.E
           digit={char}
           width={width}
           height={height}
-          style={{
-            marginHorizontal: - width * 0.05, // Slight positive gap between numbers
-          }}
         />
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {

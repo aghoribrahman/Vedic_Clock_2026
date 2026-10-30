@@ -21,6 +21,10 @@ jest.mock('../src/components/HeroDigits', () => {
   };
 });
 
+jest.mock('../src/components/Earth3D', () => ({
+  Earth3D: () => null,
+}));
+
 describe('DialCore', () => {
   it('mounts at a given size', () => {
     const tree = render(<DialCore state={stubState()} size={400} />);

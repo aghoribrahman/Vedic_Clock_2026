@@ -14,15 +14,12 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, PixelRatio, Animated, Image } from 'react-native';
+import { StyleSheet, Text, View, Animated, Image } from 'react-native';
 import { Earth3D } from './Earth3D';
 import Svg, { Circle, G, Path, Defs, ClipPath, Text as SvgText, TextPath, Image as SvgImage } from 'react-native-svg';
-import { MUHURTAS } from '../data/muhurtas';
 import { VedicClockState } from '../models';
 import { colors } from '../theme';
-import { GiltArch } from './GiltArch';
 import { EngravedText } from './EngravedText';
-const AnimatedG = Animated.createAnimatedComponent(G);
 import { HeroDigits } from './HeroDigits';
 import { RASHI_ICONS } from '../data/rashiAssets';
 import { NAKSHATRA_ICONS } from '../data/nakshatraAssets';
@@ -129,6 +126,228 @@ function AnimatedIcon({ index, size, scale, icons }: AnimatedIconProps): React.J
   );
 }
 
+interface CurvedWordsProps {
+  text: string;
+  cx: number;
+  cy: number;
+  radius: number;
+  midAngleDeg: number;
+  scale: number;
+  isTopHalf?: boolean;
+  showBg?: boolean;
+  fontSize?: number;
+  maxSpanDeg?: number;
+}
+
+const CurvedWords = React.memo(function CurvedWords({
+  text,
+  cx,
+  cy,
+  radius,
+  midAngleDeg,
+  scale,
+  isTopHalf = false,
+  showBg = false,
+  fontSize,
+  maxSpanDeg,
+}: CurvedWordsProps): React.JSX.Element {
+  const getVisualLength = (str: string) => {
+    const baseStr = str.replace(/[\u0901-\u0903\u093E-\u094C\u094E-\u0954\u0962\u0963\u094D]/g, '');
+    const halants = (str.match(/\u094D/g) || []).length;
+    let len = baseStr.length - halants;
+    len -= (str.match(/:/g) || []).length * 0.4;
+    return Math.max(len, 0.1);
+  };
+
+  const words = text.split(' ');
+  const wordPositions: number[] = [];
+  let visualTotalChars = 0;
+  let currentVisualIndex = 0;
+  words.forEach((word) => {
+    const visualWordLen = getVisualLength(word);
+    wordPositions.push(currentVisualIndex + visualWordLen / 2);
+    currentVisualIndex += visualWordLen + 0.7;
+  });
+  visualTotalChars = currentVisualIndex - 0.7;
+
+  const span = Math.min(visualTotalChars * 2.8 + 4, maxSpanDeg ?? 50);
+  const effectiveR = isTopHalf ? radius - 15 * scale : radius;
+  const startAngleDeg = isTopHalf ? midAngleDeg - span / 2 : midAngleDeg + span / 2;
+  const endAngleDeg = isTopHalf ? midAngleDeg + span / 2 : midAngleDeg - span / 2;
+  const bgRadius = effectiveR + (isTopHalf ? 6 * scale : -6 * scale);
+  const isIncreasing = endAngleDeg > startAngleDeg;
+  const paddedStart = startAngleDeg + (isIncreasing ? -1.5 : 1.5);
+  const paddedEnd = endAngleDeg + (isIncreasing ? 1.5 : -1.5);
+  const bgPath = showBg
+    ? arcLine(cx, cy, bgRadius, paddedStart * Math.PI / 180, paddedEnd * Math.PI / 180, isIncreasing ? 1 : 0)
+    : null;
+
+  return (
+    <G>
+      {bgPath && (
+        <Path
+          d={bgPath}
+          stroke="rgba(0,0,0,0.65)"
+          strokeWidth={37 * scale}
+          strokeLinecap="round"
+          fill="none"
+        />
+      )}
+      {words.map((word, index) => {
+        const t = visualTotalChars > 0 ? wordPositions[index] / visualTotalChars : 0.5;
+        const angleDeg = startAngleDeg + t * (endAngleDeg - startAngleDeg);
+        const angleRad = angleDeg * Math.PI / 180;
+        const x = cx + effectiveR * Math.cos(angleRad);
+        const y = cy + effectiveR * Math.sin(angleRad);
+        const rotation = isTopHalf ? angleDeg + 90 : angleDeg - 90;
+
+        return (
+          <G key={index} x={x} y={y} rotation={rotation} origin="0, 0">
+            <SvgText
+              fill={colors.highlight}
+              fontSize={fontSize ?? 26 * scale}
+              fontWeight="bold"
+              textAnchor="middle"
+              alignmentBaseline="middle"
+            >
+              {word}
+            </SvgText>
+          </G>
+        );
+      })}
+    </G>
+  );
+});
+
+interface ProgressTickRingProps {
+  center: number;
+  radius: number;
+  startAngleDeg: number;
+  angleSpanDeg: number;
+  currentIndex: number;
+  scale: number;
+  reverse?: boolean;
+}
+
+const ProgressTickRing = React.memo(function ProgressTickRing({
+  center,
+  radius,
+  startAngleDeg,
+  angleSpanDeg,
+  currentIndex,
+  scale,
+  reverse = false,
+}: ProgressTickRingProps): React.JSX.Element {
+  const ticks = useMemo(
+    () => Array.from({ length: 60 }, (_, index) => {
+      const progress = index / 59;
+      const angleDeg = startAngleDeg + (reverse ? -progress : progress) * angleSpanDeg;
+      const angleRad = angleDeg * Math.PI / 180;
+      return {
+        index,
+        cx: center + radius * Math.cos(angleRad),
+        cy: center + radius * Math.sin(angleRad),
+        rotation: angleDeg + 90,
+      };
+    }),
+    [center, radius, startAngleDeg, angleSpanDeg, reverse],
+  );
+
+  return (
+    <>
+      {ticks.map((tick) => {
+        const isActive = tick.index <= currentIndex;
+        return (
+          <G
+            key={tick.index}
+            x={tick.cx}
+            y={tick.cy}
+            rotation={tick.rotation}
+            origin="0, 0"
+          >
+            <Path
+              d={`M 0 ${7 * scale} C ${-3.5 * scale} ${1.4 * scale}, ${-4.2 * scale} ${-4.2 * scale}, 0 ${-7 * scale} C ${4.2 * scale} ${-4.2 * scale}, ${3.5 * scale} ${1.4 * scale}, 0 ${7 * scale} Z`}
+              fill={isActive ? '#FF9933' : 'rgba(255, 255, 255, 0.1)'}
+              stroke={isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.2)'}
+              strokeWidth={0.8 * scale}
+            />
+          </G>
+        );
+      })}
+    </>
+  );
+});
+
+interface ClockReadoutProps {
+  muhurta: string;
+  kala: string;
+  kashtha: string;
+  muhurtaName: string;
+  deity: string;
+  scale: number;
+  ringInnerR: number;
+}
+
+const ClockReadout = React.memo(function ClockReadout({
+  muhurta,
+  kala,
+  kashtha,
+  muhurtaName,
+  deity,
+  scale,
+  ringInnerR,
+}: ClockReadoutProps): React.JSX.Element {
+  const diameter = ringInnerR * 2 * 1.12;
+  return (
+    <View
+      style={[
+        styles.digits,
+        {
+          transform: [{ translateY: -18 * scale }, { translateX: 0 }],
+          width: diameter,
+          height: diameter,
+          borderRadius: diameter / 2,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'transparent',
+        },
+      ]}
+      pointerEvents="none"
+    >
+      <View style={{ transform: [{ translateY: 44 * scale }], alignItems: 'center' }}>
+        <View style={[styles.digitsRow, { alignItems: 'flex-start' }]}>
+          <View style={{ alignItems: 'center' }}>
+            <HeroDigits text={muhurta} scale={scale * 0.65} />
+            <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>मुहूर्त</Text>
+          </View>
+          <Image source={require('../../assets/numbers/colon.png')} style={{ height: 72 * scale, width: 28 * scale, resizeMode: 'contain', marginHorizontal: 0 }} />
+          <View style={{ alignItems: 'center' }}>
+            <HeroDigits text={kala} scale={scale * 0.65} />
+            <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>कला</Text>
+          </View>
+          <Image source={require('../../assets/numbers/colon.png')} style={{ height: 72 * scale, width: 28 * scale, resizeMode: 'contain', marginHorizontal: 0 }} />
+          <View style={{ alignItems: 'center' }}>
+            <HeroDigits text={kashtha} scale={scale * 0.65} />
+            <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>काष्ठा</Text>
+          </View>
+        </View>
+        <Text
+          style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 16 * scale, letterSpacing: 1 * scale }]}
+          numberOfLines={1}
+        >
+          {muhurtaName}
+        </Text>
+        <Text
+          style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 8 * scale, letterSpacing: 1 * scale }]}
+          numberOfLines={1}
+        >
+          {deity}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 export function DialCore({ state, size }: Props): React.JSX.Element {
   const half = size / 2;
   const ringOuterR = half * 0.94; // slightly larger for the brass texture
@@ -137,20 +356,8 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const targetKaranaSlot = state.panchang?.karana?.slot ?? 0;
   const targetYogaFraction = state.panchang?.yoga?.progressFraction ?? 0;
 
-  const glowAnim = useRef(new Animated.Value(0.4)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
-      ])
-    ).start();
-  }, [glowAnim]);
-
   // Scale factor for text and spacing (normalized to size 600)
   const scale = size / 600;
-  const fontScale = PixelRatio.getFontScale();
-
   // Responsive Rashi sizing — refined for fluid adaptation
   const rashiSize = useMemo(() => {
     // Non-linear scaling for better balance across device classes
@@ -161,7 +368,6 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
 
   // ── Tuning Values for Frame Cutouts ──
   // These control the exact X/Y offset from the center of the dial for the 4 circular golden cutouts.
-  const frameOffsetY = 10 * scale;
   const frameCenterY = half + (4 * scale); // Found the exact vertical midpoint
 
   const topCutoutX = half * 0.748; // Perfect
@@ -192,21 +398,6 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   }) : '';
   const sunriseStr = formatTimeIst(state.sunriseUtc);
   const sunsetStr = formatTimeIst(state.sunsetUtc);
-
-  // Build the 30 muhurta wedges as SVG paths.
-  const wedges: { d: string; fill: string; key: number }[] = [];
-  for (let i = 0; i < 30; i++) {
-    const startAng = (i / 30) * Math.PI * 2 - Math.PI / 2; // start at top
-    const endAng = ((i + 1) / 30) * Math.PI * 2 - Math.PI / 2;
-    wedges.push({
-      key: i,
-      d: arcWedge(half, half, ringInnerR, ringOuterR, startAng, endAng),
-      fill: wedgeFill(i, state.muhurtaIndex),
-    });
-  }
-
-  // Hand: rotation in degrees for the elapsed-time pointer.
-  const handAngle = state.clockAngleDeg;
 
   // Format the hero digits as zero-padded.
   const mm = pad2(state.muhurtaInDay);
@@ -259,19 +450,14 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const topRightWedgeStart = 295 * Math.PI / 180;
   const topRightWedgeEnd = 335 * Math.PI / 180;
 
-  const leftArchWedge = arcWedge(svgHalf, svgHalf, r_inner_bottom, r_outer_bottom, leftWedgeStart, leftWedgeEnd);
-  const rightArchWedge = arcWedge(svgHalf, svgHalf, r_inner_bottom, r_outer_bottom, rightWedgeStart, rightWedgeEnd);
-  const topLeftArchWedge = arcWedge(svgHalf, svgHalf, r_inner_top, r_outer_top, topLeftWedgeStart, topLeftWedgeEnd);
-  const topRightArchWedge = arcWedge(svgHalf, svgHalf, r_inner_top, r_outer_top, topRightWedgeStart, topRightWedgeEnd);
-
-  // Use sweepFlag = 0 (counter-clockwise) to draw paths so text faces inward
-  const leftTextPath = arcLine(svgHalf, svgHalf, r_text_bottom, leftTextStart, leftTextEnd, 0);
-  const rightTextPath = arcLine(svgHalf, svgHalf, r_text_bottom, rightTextStart, rightTextEnd, 0);
-
-  const leftTextCx = svgHalf + r_text_bottom * Math.cos(135 * Math.PI / 180);
-  const leftTextCy = svgHalf + r_text_bottom * Math.sin(135 * Math.PI / 180);
-  const rightTextCx = svgHalf + r_text_bottom * Math.cos(45 * Math.PI / 180);
-  const rightTextCy = svgHalf + r_text_bottom * Math.sin(45 * Math.PI / 180);
+  const archGeometry = useMemo(() => ({
+    leftArchWedge: arcWedge(svgHalf, svgHalf, r_inner_bottom, r_outer_bottom, leftWedgeStart, leftWedgeEnd),
+    rightArchWedge: arcWedge(svgHalf, svgHalf, r_inner_bottom, r_outer_bottom, rightWedgeStart, rightWedgeEnd),
+    topLeftArchWedge: arcWedge(svgHalf, svgHalf, r_inner_top, r_outer_top, topLeftWedgeStart, topLeftWedgeEnd),
+    topRightArchWedge: arcWedge(svgHalf, svgHalf, r_inner_top, r_outer_top, topRightWedgeStart, topRightWedgeEnd),
+    leftTextPath: arcLine(svgHalf, svgHalf, r_text_bottom, leftTextStart, leftTextEnd, 0),
+    rightTextPath: arcLine(svgHalf, svgHalf, r_text_bottom, rightTextStart, rightTextEnd, 0),
+  }), [svgHalf, r_inner_bottom, r_outer_bottom, r_inner_top, r_outer_top, r_text_bottom]);
 
   // Yoga progress arc (centered at 90°, same 40° budget). 90 ± 20 = 70°–110°
   const targetPercentage = Math.round(targetYogaFraction * 100);
@@ -287,51 +473,19 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const r_yoga_tick_start = r_text_bottom + 30 * scale;
   const r_yoga_tick_end = r_text_bottom + 44 * scale;
   const r_yoga_label = r_text_bottom + 62 * scale;
+  const yogaTickRadius = (r_yoga_tick_start + r_yoga_tick_end) / 2;
 
-  const r_yoga_mid = (r_yoga_tick_start + r_yoga_tick_end) / 2;
-  const yogaTicks: { cx: number; cy: number; rotation: number; isActive: boolean; isCurrent: boolean; key: number }[] = [];
   const currentYogaIndex = Math.max(0, Math.min(59, Math.floor(targetYogaFraction * 60)));
-  for (let i = 0; i < 60; i++) {
-    const angleDeg = yogaStartAngleDeg - (i / 59) * yogaAngleSpan;
-    const angleRad = angleDeg * Math.PI / 180;
-    yogaTicks.push({
-      key: i,
-      cx: svgHalf + r_yoga_mid * Math.cos(angleRad),
-      cy: svgHalf + r_yoga_mid * Math.sin(angleRad),
-      rotation: angleDeg + 90,
-      isActive: i <= currentYogaIndex,
-      isCurrent: i === currentYogaIndex,
-    });
-  }
 
   // Karana calculations (centered at 270°, same 40° budget). 270 ± 20 = 250°–290°
-  const karanaIsFixed = state.panchang?.karana?.isFixed ?? false;
-  const karanaSubMeaning = karanaIsFixed ? 'स्थिर' : 'चर';
-
   // Tick line parameters — equal 40° span matching all other arches
   const karanaStartAngleDeg = 250;  // 270 - 20
   const karanaEndAngleDeg = 290;    // 270 + 20
   const karanaAngleSpan = karanaEndAngleDeg - karanaStartAngleDeg; // 40 degrees
-  const r_karana_tick_start = r_text_top + 30 * scale;
-  const r_karana_tick_end = r_text_top + 44 * scale;
   const r_karana_label = r_text_top + 58 * scale;
+  const karanaTickRadius = r_text_top + 37 * scale;
 
-  // 60 tick lines coordinates
-  const r_karana_mid = (r_karana_tick_start + r_karana_tick_end) / 2;
-  const karanaTicks: { cx: number; cy: number; rotation: number; isActive: boolean; isCurrent: boolean; key: number }[] = [];
   const currentKaranaIndex = Math.max(0, Math.min(59, targetKaranaSlot - 1));
-  for (let i = 0; i < 60; i++) {
-    const angleDeg = karanaStartAngleDeg + (i / 59) * karanaAngleSpan;
-    const angleRad = angleDeg * Math.PI / 180;
-    karanaTicks.push({
-      key: i,
-      cx: svgHalf + r_karana_mid * Math.cos(angleRad),
-      cy: svgHalf + r_karana_mid * Math.sin(angleRad),
-      rotation: angleDeg + 90,
-      isActive: i <= currentKaranaIndex,
-      isCurrent: i === currentKaranaIndex,
-    });
-  }
 
   // Active tick position for the static label "32"
   const activeIndex = Math.max(0, Math.min(59, targetKaranaSlot - 1));
@@ -339,90 +493,6 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
   const activeAngleRad = activeAngleDeg * Math.PI / 180;
   const karanaLabelX = svgHalf + r_karana_label * Math.cos(activeAngleRad);
   const karanaLabelY = svgHalf + r_karana_label * Math.sin(activeAngleRad);
-
-  const renderCurvedWords = (text: string, cx: number, cy: number, r: number, midAngleDeg: number, isTopHalf: boolean = false, showBg: boolean = false, fontSizeOverride?: number, maxSpanDeg?: number) => {
-    // 1. Calculate approximate visual span for the background track
-    const getVisualLength = (str: string) => {
-      const baseStr = str.replace(/[\u0901-\u0903\u093E-\u094C\u094E-\u0954\u0962\u0963\u094D]/g, '');
-      const halants = (str.match(/\u094D/g) || []).length;
-      let len = baseStr.length - halants;
-      len -= (str.match(/:/g) || []).length * 0.4;
-      return Math.max(len, 0.1);
-    };
-
-    const words = text.split(' ');
-    const spaceWidth = 0.7;
-    let visualTotalChars = 0;
-    const wordPositions: number[] = [];
-
-    let currentVisualIndex = 0;
-    words.forEach((w) => {
-      const visualWordLen = getVisualLength(w);
-      wordPositions.push(currentVisualIndex + visualWordLen / 2);
-      currentVisualIndex += visualWordLen + spaceWidth;
-    });
-    visualTotalChars = currentVisualIndex - spaceWidth;
-
-    const degreesPerVisualChar = 2.8;
-    const paddingDegrees = 4;
-    const budgetDeg = maxSpanDeg ?? 50;
-    const span = Math.min(visualTotalChars * degreesPerVisualChar + paddingDegrees, budgetDeg);
-
-    // Shift radius inwards for top-half arches to vertically center the text
-    const effectiveR = isTopHalf ? r - (15 * scale) : r;
-
-    // Background path calculation
-    const startAngleDeg = isTopHalf ? midAngleDeg - span / 2 : midAngleDeg + span / 2;
-    const endAngleDeg = isTopHalf ? midAngleDeg + span / 2 : midAngleDeg - span / 2;
-    const bgRadius = effectiveR + (isTopHalf ? (6 * scale) : (-6 * scale));
-    const isIncreasing = endAngleDeg > startAngleDeg;
-    const padding = 1.5;
-    const paddedStart = startAngleDeg + (isIncreasing ? -padding : padding);
-    const paddedEnd = endAngleDeg + (isIncreasing ? padding : -padding);
-    const sweep = isIncreasing ? 1 : 0;
-
-    const bgPath = showBg
-      ? arcLine(cx, cy, bgRadius, paddedStart * Math.PI / 180, paddedEnd * Math.PI / 180, sweep)
-      : null;
-
-    return (
-      <G key={`${startAngleDeg}-${endAngleDeg}`}>
-        {bgPath && (
-          <Path
-            d={bgPath}
-            stroke="rgba(0,0,0,0.65)"
-            strokeWidth={37 * scale}
-            strokeLinecap="round"
-            fill="none"
-          />
-        )}
-        {words.map((word, i) => {
-          const centerVisualIndex = wordPositions ? wordPositions[i] : 0;
-          const t = visualTotalChars > 0 ? centerVisualIndex / visualTotalChars : 0.5;
-
-          const angleDeg = startAngleDeg + t * (endAngleDeg - startAngleDeg);
-          const angleRad = angleDeg * Math.PI / 180;
-          const x = cx + effectiveR * Math.cos(angleRad);
-          const y = cy + effectiveR * Math.sin(angleRad);
-          const rotation = isTopHalf ? angleDeg + 90 : angleDeg - 90;
-
-          return (
-            <G key={i} x={x} y={y} rotation={rotation} origin="0, 0">
-              <SvgText
-                fill={colors.highlight}
-                fontSize={fontSizeOverride || 26 * scale}
-                fontWeight="bold"
-                textAnchor="middle"
-                alignmentBaseline="middle"
-              >
-                {word}
-              </SvgText>
-            </G>
-          );
-        })}
-      </G>
-    );
-  };
 
   return (
     <View style={[styles.wrapper, { width: size, height: size, transform: [{ translateY: 0 }] }]}>
@@ -477,144 +547,83 @@ export function DialCore({ state, size }: Props): React.JSX.Element {
       >
         <Defs>
           <ClipPath id="clipLeft">
-            <Path d={leftArchWedge} />
+            <Path d={archGeometry.leftArchWedge} />
           </ClipPath>
           <ClipPath id="clipRight">
-            <Path d={rightArchWedge} />
+            <Path d={archGeometry.rightArchWedge} />
           </ClipPath>
           <ClipPath id="clipTopLeft">
-            <Path d={topLeftArchWedge} />
+            <Path d={archGeometry.topLeftArchWedge} />
           </ClipPath>
           <ClipPath id="clipTopRight">
-            <Path d={topRightArchWedge} />
+            <Path d={archGeometry.topRightArchWedge} />
           </ClipPath>
-          <Path id="pathTextLeft" d={leftTextPath} />
-          <Path id="pathTextRight" d={rightTextPath} />
+          <Path id="pathTextLeft" d={archGeometry.leftTextPath} />
+          <Path id="pathTextRight" d={archGeometry.rightTextPath} />
         </Defs>
 
         {/* Left Arch (Moon Rashi) */}
 
-        {renderCurvedWords(`चन्द्र राशि : ${state.panchang?.moonRashi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 135, false, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`चन्द्र राशि : ${state.panchang?.moonRashi?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_bottom} midAngleDeg={135} scale={scale} showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
         {/* Bottom-Center Arch (Yoga) */}
-        {renderCurvedWords(`योग : ${state.panchang?.yoga?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 90, false, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`योग : ${state.panchang?.yoga?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_bottom} midAngleDeg={90} scale={scale} showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
         {/* Yoga Progressive Bar */}
-        {yogaTicks.map((tick) => {
-          const Node = tick.isCurrent ? AnimatedG : G;
-          return (
-            <Node key={tick.key} x={tick.cx} y={tick.cy} rotation={tick.rotation} origin="0, 0" opacity={tick.isCurrent ? glowAnim : 1}>
-              <Path
-                d={`M 0 ${7 * scale} C ${-3.5 * scale} ${1.4 * scale}, ${-4.2 * scale} ${-4.2 * scale}, 0 ${-7 * scale} C ${4.2 * scale} ${-4.2 * scale}, ${3.5 * scale} ${1.4 * scale}, 0 ${7 * scale} Z`}
-                fill={tick.isActive ? '#FF9933' : 'rgba(255, 255, 255, 0.1)'}
-                stroke={tick.isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.2)'}
-                strokeWidth={0.8 * scale}
-              />
-            </Node>
-          );
-        })}
+        <ProgressTickRing
+          center={svgHalf}
+          radius={yogaTickRadius}
+          startAngleDeg={yogaStartAngleDeg}
+          angleSpanDeg={yogaAngleSpan}
+          currentIndex={currentYogaIndex}
+          scale={scale}
+          reverse
+        />
 
         {/* Yoga Percentage Label */}
-        {renderCurvedWords(`${targetPercentage}/100`, svgHalf, svgHalf, r_yoga_label, yogaLabelAngleDeg, false, false, 20 * scale)}
+        <CurvedWords text={`${targetPercentage}/100`} cx={svgHalf} cy={svgHalf} radius={r_yoga_label} midAngleDeg={yogaLabelAngleDeg} scale={scale} fontSize={20 * scale} />
 
         {/* Right Arch (Sun Rashi) */}
 
-        {renderCurvedWords(`सूर्य राशि : ${state.panchang?.sunRashi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_bottom, 45, false, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`सूर्य राशि : ${state.panchang?.sunRashi?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_bottom} midAngleDeg={45} scale={scale} showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
         {/* Top-Left Arch (Nakshatra) */}
 
-        {renderCurvedWords(`नक्षत्र : ${state.panchang?.nakshatra?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 225, true, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`नक्षत्र : ${state.panchang?.nakshatra?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_top} midAngleDeg={225} scale={scale} isTopHalf showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
         {/* Karana (Top-Center) */}
-        {renderCurvedWords(`करण : ${state.panchang?.karana?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 270, true, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`करण : ${state.panchang?.karana?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_top} midAngleDeg={270} scale={scale} isTopHalf showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
-        {karanaTicks.map((tick) => {
-          const Node = tick.isCurrent ? AnimatedG : G;
-          return (
-            <Node key={tick.key} x={tick.cx} y={tick.cy} rotation={tick.rotation} origin="0, 0" opacity={tick.isCurrent ? glowAnim : 1}>
-              <Path
-                d={`M 0 ${7 * scale} C ${-3.5 * scale} ${1.4 * scale}, ${-4.2 * scale} ${-4.2 * scale}, 0 ${-7 * scale} C ${4.2 * scale} ${-4.2 * scale}, ${3.5 * scale} ${1.4 * scale}, 0 ${7 * scale} Z`}
-                fill={tick.isActive ? '#FF9933' : 'rgba(255, 255, 255, 0.1)'}
-                stroke={tick.isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.2)'}
-                strokeWidth={0.8 * scale}
-              />
-            </Node>
-          );
-        })}
+        <ProgressTickRing
+          center={svgHalf}
+          radius={karanaTickRadius}
+          startAngleDeg={karanaStartAngleDeg}
+          angleSpanDeg={karanaAngleSpan}
+          currentIndex={currentKaranaIndex}
+          scale={scale}
+        />
 
         {/* Karana Active Slot Label */}
-        {renderCurvedWords(`${targetKaranaSlot}/60`, svgHalf, svgHalf, r_karana_label + (15 * scale), activeAngleDeg, true, false, 20 * scale)}
+        <CurvedWords text={`${targetKaranaSlot}/60`} cx={svgHalf} cy={svgHalf} radius={r_karana_label + (15 * scale)} midAngleDeg={activeAngleDeg} scale={scale} isTopHalf fontSize={20 * scale} />
 
         {/* Top-Right Arch (Tithi) */}
 
         {/* Top-Right Text (Tithi) */}
-        {renderCurvedWords(`तिथि : ${state.panchang?.tithi?.nameHi ?? ''}`, svgHalf, svgHalf, r_text_top, 315, true, true, undefined, ARCH_BUDGET_DEG)}
+        <CurvedWords text={`तिथि : ${state.panchang?.tithi?.nameHi ?? ''}`} cx={svgHalf} cy={svgHalf} radius={r_text_top} midAngleDeg={315} scale={scale} isTopHalf showBg maxSpanDeg={ARCH_BUDGET_DEG} />
 
       </Svg>
 
 
 
-      <View
-        style={[
-          styles.digits,
-          {
-            transform: [{ translateY: -18 * scale }, { translateX: 0 }],
-            width: ringInnerR * 2 * 1.12,
-            height: ringInnerR * 2 * 1.12,
-            borderRadius: (ringInnerR * 2 * 1.12) / 2,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'transparent',
-            // Border and shadow removed to keep globe unfiltered
-          }
-        ]}
-        pointerEvents="none"
-      >
-        <View style={{ transform: [{ translateY: 44 * scale }], alignItems: 'center' }}>
-          <View style={[styles.digitsRow, { alignItems: 'flex-start' }]}>
-            <View style={{ alignItems: 'center' }}>
-              <HeroDigits text={mm} scale={scale * 0.65} />
-              <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>मुहूर्त</Text>
-            </View>
-            <Image source={require('../../assets/numbers/colon.png')} style={{ height: 72 * scale, width: 28 * scale, resizeMode: 'contain', marginHorizontal: 0 }} />
-            <View style={{ alignItems: 'center' }}>
-              <HeroDigits text={kk1} scale={scale * 0.65} />
-              <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>कला</Text>
-            </View>
-            <Image source={require('../../assets/numbers/colon.png')} style={{ height: 72 * scale, width: 28 * scale, resizeMode: 'contain', marginHorizontal: 0 }} />
-            <View style={{ alignItems: 'center' }}>
-              <HeroDigits text={kk2} scale={scale * 0.65} />
-              <Text style={[styles.rashiLabel, { fontSize: 24 * scale, marginTop: 6 * scale, letterSpacing: 1 * scale }]}>काष्ठा</Text>
-            </View>
-          </View>
-          <Text
-            style={[
-              styles.rashiLabel,
-              {
-                fontSize: 24 * scale,
-                marginTop: 16 * scale,
-                letterSpacing: 1 * scale,
-              }
-            ]}
-            numberOfLines={1}
-          >
-            {state.muhurta?.devanagari ?? ''} · {state.muhurta?.name ?? ''}
-          </Text>
-          <Text
-            style={[
-              styles.rashiLabel,
-              {
-                fontSize: 24 * scale,
-                marginTop: 8 * scale,
-                letterSpacing: 1 * scale,
-              }
-            ]}
-            numberOfLines={1}
-          >
-            देवता : {state.muhurta ? (DEITY_HI[state.muhurta.deity] || state.muhurta.deity) : ''}
-          </Text>
-        </View>
-      </View>
+      <ClockReadout
+        muhurta={mm}
+        kala={kk1}
+        kashtha={kk2}
+        muhurtaName={`${state.muhurta?.devanagari ?? ''} · ${state.muhurta?.name ?? ''}`}
+        deity={`देवता : ${state.muhurta ? (DEITY_HI[state.muhurta.deity] || state.muhurta.deity) : ''}`}
+        scale={scale}
+        ringInnerR={ringInnerR}
+      />
 
       {/* Floating Icons */}
       <View style={[styles.rashiFloatingContainer, { left: moonX, top: moonY, width: rashiBgSize, height: rashiBgSize }]}>
@@ -736,21 +745,6 @@ const DEITY_HI: Record<string, string> = {
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
-}
-
-function wedgeFill(wedgeIdx: number, activeIdx: number): string {
-  const m = MUHURTAS[wedgeIdx];
-  const base = m.nature === 'shubha' ? colors.shubha : colors.ashubha;
-  const isActive = wedgeIdx === activeIdx;
-
-  // Mix hex into rgba for translucency over brass texture.
-  const clean = base.replace('#', '');
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-
-  const alpha = isActive ? 0.5 : 0.08;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /** Mute a hex colour by mixing with the bgDeep, returning an rgba. */

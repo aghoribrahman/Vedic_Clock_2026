@@ -7,7 +7,6 @@
  * map. Features:
  *   - Smooth auto-rotation
  *   - Realistic directional + ambient lighting
- *   - Subtle atmosphere glow via a custom Fresnel-based shader
  *   - Transparent background so the clock dial frame overlays cleanly
  */
 
@@ -36,7 +35,6 @@ function resolveWebAsset(asset: any): string {
 const EARTH_TEXTURE = resolveWebAsset(require('../../assets/earth.jpg'));
 const EARTH_NORMAL = resolveWebAsset(require('../../assets/images/earth_normal.jpg'));
 const EARTH_SPECULAR = resolveWebAsset(require('../../assets/images/earth_specular.jpg'));
-const EARTH_CLOUDS = resolveWebAsset(require('../../assets/images/earth_clouds.png'));
 const EARTH_NIGHT = resolveWebAsset(require('../../assets/images/earth_night.jpg'));
 
 interface Earth3DProps {
@@ -83,7 +81,7 @@ function EarthSphere(): React.JSX.Element {
   // Slow continuous rotation
   useFrame((_state, delta) => {
     if (meshRef.current) {
-      meshRef.current.rotation.y += 0.04 * delta; // ~2.4° per second
+      meshRef.current.rotation.y += 0.01396 * delta; // ~0.8° per second
     }
   });
 
@@ -140,91 +138,13 @@ function EarthSphere(): React.JSX.Element {
   );
 }
 
-/**
- * Cloud layer — slightly larger sphere wrapping the Earth.
- */
-function CloudSphere(): React.JSX.Element {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const cloudMap = useLoader(THREE.TextureLoader, EARTH_CLOUDS);
-
-  useFrame((_state, delta) => {
-    if (meshRef.current) {
-      // Clouds rotate slightly faster than the earth
-      meshRef.current.rotation.y += 0.0475 * delta;
-    }
-  });
-
-  return (
-    <mesh ref={meshRef} rotation={[0, 0, 23.44 * (Math.PI / 180)]} scale={[1.006, 1.006, 1.006]}>
-      <sphereGeometry args={[1, 256, 256]} />
-      <meshPhongMaterial
-        map={cloudMap}
-        transparent={true}
-        opacity={0.8}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  );
-}
-
-/**
- * Atmosphere glow — a slightly larger, semi-transparent sphere with a
- * custom Fresnel shader that brightens at the edges (limb darkening
- * inversion) to simulate atmospheric scattering.
- */
-function AtmosphereGlow(): React.JSX.Element {
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-        void main() {
-          // Fresnel: bright at edges, transparent at center
-          vec3 viewDir = normalize(-vPosition);
-          float fresnel = 1.0 - dot(viewDir, vNormal);
-          fresnel = pow(fresnel, 3.0);
-          // Blue-white atmospheric glow
-          vec3 atmosphereColor = mix(
-            vec3(0.3, 0.6, 1.0),  // deep blue
-            vec3(0.6, 0.8, 1.0),  // light blue-white
-            fresnel
-          );
-          gl_FragColor = vec4(atmosphereColor, fresnel * 0.6);
-        }
-      `,
-      transparent: true,
-      side: THREE.FrontSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-  }, []);
-
-  return (
-    <mesh scale={[1.08, 1.08, 1.08]}>
-      <sphereGeometry args={[1, 256, 256]} />
-      <primitive object={shaderMaterial} attach="material" />
-    </mesh>
-  );
-}
-
 // Controls disabled for Native compatibility
 function Controls(): React.JSX.Element | null {
   return null;
 }
 
 /**
- * Scene setup — camera, lights, and the earth + atmosphere meshes.
+ * Scene setup — camera, lights, and the Earth mesh.
  */
 function EarthScene(): React.JSX.Element {
   return (
@@ -233,13 +153,10 @@ function EarthScene(): React.JSX.Element {
       <ambientLight intensity={0.3} />
       {/* Main sunlight from upper-right */}
       <directionalLight position={[5, 3, 5]} intensity={1.5} />
-      {/* Subtle rim light from behind */}
       <directionalLight position={[-3, -1, -5]} intensity={0.2} />
 
       <group scale={[0.8505, 0.8505, 0.8505]}>
         <EarthSphere />
-        <CloudSphere />
-        <AtmosphereGlow />
       </group>
       <Controls />
     </>
@@ -268,7 +185,7 @@ class EarthErrorBoundary extends React.Component<React.PropsWithChildren, { hasE
 
 // ── Main exported component ────────────────────────────────────────────
 
-export function Earth3D({ size }: Earth3DProps): React.JSX.Element {
+export const Earth3D = React.memo(function Earth3D({ size }: Earth3DProps): React.JSX.Element {
   return (
     <View
       style={{
@@ -280,7 +197,7 @@ export function Earth3D({ size }: Earth3DProps): React.JSX.Element {
     >
       <EarthErrorBoundary>
         <Canvas
-          dpr={[1, 2]}
+          dpr={1}
           gl={{
             alpha: true,
             antialias: true,
@@ -301,7 +218,7 @@ export function Earth3D({ size }: Earth3DProps): React.JSX.Element {
       </EarthErrorBoundary>
     </View>
   );
-}
+});
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 // No manual asset resolution needed as useTexture handles numeric module IDs internally.
